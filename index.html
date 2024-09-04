@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Punch Card Generator</title>
+    <style>
+        .punch {
+            display: inline-block; width: 1.25%; text-align: center;
+        }
+        .punch-check {
+            /* Add if not using autoprefixer */
+  -webkit-appearance: none;
+  appearance: none;
+  /* For iOS < 15 to remove gradient background */
+  background-color: #fff;
+  /* Not removed via appearance */
+  margin: 0;
+  display: inline-block;
+            height: 80%;
+            width: 80%;
+        }
+        .punch-check:after {
+            content: attr(row);
+            display: inline-block;
+            width: 100%;
+            text-align: center;
+        }
+        .punch-check:checked {
+            background-color: #000;
+            border-radius: 50%;
+        }
+        .little-block {
+            display: inline-block;
+            width: 1.25%;
+            text-align: center;
+            font-size: 0.7em;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <button style="float: left; margin-left: 3em; margin-top: 0.5em;" onclick="edit(this)">Edit</button>
+        <div style="width: 90%; margin: auto; padding: 3em 3em 0em 3em; background-color: #d1d1d1;" id="text"></div>
+        <div style="width: 90%; margin: auto; padding: 0em 3em 0em 3em; background-color: #d1d1d1;" id="zone"></div>
+        <div style="width: 90%; margin: auto; padding: 0em 3em 0em 3em; background-color: #d1d1d1;" id="topcolcount"></div>
+        <div style="width: 90%; margin: auto; padding: 0em 3em 0em 3em; background-color: #d1d1d1;" id="test"></div>
+        <div style="width: 90%; margin: auto; padding: 0em 3em 3em 3em; background-color: #d1d1d1;" id="bottomcolcount"></div>
+    </div>
+    <p style="margin-top: 3em">
+        <span style="font-weight: 900">How to use this tool</span>
+        <br>
+        Click the "edit" button (1) to generate a punched card from text.
+        <br>
+        Click any of the boxes to "punch" / "unpunch" a hole. The decoded text at the top (3) will be automatically updated.
+        <br>
+        The line numbers (5) are at the bottom and between the columns section and the zone section (2).
+        <br>
+        Text is entered in the columns (4)
+        <br><br>
+        <span style="font-weight: 900">Diagram:</span>
+        <br>
+        <img src="diagram.png" style="width: 100%" alt="Punch Card Diagram"/>
+    </p>
+    <div style="margin-top: 15px;">
+        <p style="text-align: center;">MIT License</p>
+    </div>
+    <script>
+        function edit(element, input) {
+            if (input == null) {
+                input = prompt("Line:");
+            }
+            var text = input.toLowerCase().split("");
+            var spans = document.querySelectorAll("#text span");
+            for (let letter = 0; letter < spans.length; letter++) {
+                spans[letter].innerHTML = "";
+            }
+            originaltext = input;
+            element.parentNode.querySelectorAll("input[type=checkbox]").forEach(function(element, i){element.checked = false;})
+            refresh();
+        }
+
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 80; col++) {
+                var text = " ";
+                if (row==2) {
+                    text = "0";
+                }
+                document.getElementById("zone").innerHTML += `<span class='punch'><input class='punch-check' type='checkbox' row='${text}'/></span>`         
+            }
+        }
+        for (let row = 0; row < 9; row++) {
+            for (let col = 0; col < 80; col++) {
+                document.getElementById("test").innerHTML += `<span class='punch'><input class='punch-check' type='checkbox' row='${row+1}'/></span>`         
+            }
+        }
+        for (let col = 0; col < 80; col++) {
+            document.getElementById("topcolcount").innerHTML += `<span class='little-block'>${col+1}</span>`         
+        }
+        for (let col = 0; col < 80; col++) {
+            document.getElementById("bottomcolcount").innerHTML += `<span class='little-block'>${col+1}</span>`         
+        }
+        for (let col = 0; col < 80; col++) {
+            document.getElementById("text").innerHTML += `<span class='little-block'></span>`         
+        }
+
+        function checkboxChanged(event) {
+            var col = event.target.column;
+
+            document.getElementById("text").childNodes[col].innerHTML = "";
+
+            var columndata = [];
+            columndata.push(document.querySelectorAll("#zone input")[160+col].checked) //0
+            for (let row = 0; row < 9; row++) {
+                columndata.push(document.querySelectorAll("#test input")[(row*80)+col].checked) //1-9
+            }
+            columndata.push(false); //row 10 doesn't exist
+            columndata.push(document.querySelectorAll("#zone input")[80+col].checked) //11
+            columndata.push(document.querySelectorAll("#zone input")[col].checked) //12
+
+            var checkedrows = [];
+            for (let row = 0; row < columndata.length; row++) {
+                if (columndata[row]) {
+                    checkedrows.push(row);
+                }
+            }
+
+            var match = false;
+            for (let symbol = 0; symbol < symbols.length; symbol++) {
+                if (ignoreOrderCompare(checkedrows,symbols[symbol].holes)) {
+                    document.getElementById("text").childNodes[col].innerHTML = symbols[symbol].symbol;
+                    match = true;
+                }
+            }
+
+            if (!match) {
+                for (let letter = 0; letter < letters.length; letter++) {
+                    if (ignoreOrderCompare(letters[letter].holes,checkedrows)) {
+                        document.getElementById("text").childNodes[col].innerHTML = letters[letter].char;
+                    }
+                }
+            }
+        }
+
+        // below function credited to
+        // https://www.scaler.com/topics/compare-two-arrays-in-javascript/
+        const ignoreOrderCompare = (a, b) => {
+            if (a.length !== b.length) return false;
+            const elements = new Set([...a, ...b]);
+            for (const x of elements) {
+                const count1 = a.filter(e => e === x).length;
+                const count2 = b.filter(e => e === x).length;
+                if (count1 !== count2) return false;
+            }
+            return true;
+        }
+
+        var chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+        var symbols = [
+            {"symbol":"&", "holes": [12]},
+            {"symbol":"₵", "holes": [12,2,8]},
+            {"symbol":".", "holes": [12,3,8]},
+            {"symbol":"<", "holes": [12,4,8]},
+            {"symbol":"(", "holes": [12,5,8]},
+            {"symbol":"+", "holes": [12,6,8]},
+            {"symbol":"|", "holes": [12,7,8]},
+            {"symbol":"-", "holes": [11]},
+            {"symbol":"!", "holes": [11,2,8]},
+            {"symbol":"$", "holes": [11,3,8]},
+            {"symbol":"*", "holes": [11,4,8]},
+            {"symbol":")", "holes": [11,5,8]},
+            {"symbol":";", "holes": [11,6,8]},
+            {"symbol":"▭", "holes": [11,7,8]},
+            {"symbol":"/", "holes": [0,1]},
+            {"symbol":",", "holes": [0,3,8]},
+            {"symbol":"%", "holes": [0,4,8]},
+            {"symbol":"_", "holes": [0,5,8]},
+            {"symbol":">", "holes": [0,6,8]},
+            {"symbol":"?", "holes": [0,7,8]},
+            {"symbol":":", "holes": [2,8]},
+            {"symbol":"#", "holes": [3,8]},
+            {"symbol":"@", "holes": [4,8]},
+            {"symbol":"'", "holes": [5,8]},
+            {"symbol":"=", "holes": [6,8]},
+            {"symbol":"\"", "holes": [7,8]}
+        ];
+
+        var letters = [
+            {"char":"0", "holes": [0]},
+            {"char":"1", "holes": [1]},
+            {"char":"2", "holes": [2]},
+            {"char":"3", "holes": [3]},
+            {"char":"4", "holes": [4]},
+            {"char":"5", "holes": [5]},
+            {"char":"6", "holes": [6]},
+            {"char":"7", "holes": [7]},
+            {"char":"8", "holes": [8]},
+            {"char":"9", "holes": [9]},
+            {"char":"a", "holes": [12,1]},
+            {"char":"b", "holes": [12,2]},
+            {"char":"c", "holes": [12,3]},
+            {"char":"d", "holes": [12,4]},
+            {"char":"e", "holes": [12,5]},
+            {"char":"f", "holes": [12,6]},
+            {"char":"g", "holes": [12,7]},
+            {"char":"h", "holes": [12,8]},
+            {"char":"i", "holes": [12,9]},
+            {"char":"j", "holes": [11,1]},
+            {"char":"k", "holes": [11,2]},
+            {"char":"l", "holes": [11,3]},
+            {"char":"m", "holes": [11,4]},
+            {"char":"n", "holes": [11,5]},
+            {"char":"o", "holes": [11,6]},
+            {"char":"p", "holes": [11,7]},
+            {"char":"q", "holes": [11,8]},
+            {"char":"r", "holes": [11,9]},
+            {"char":"s", "holes": [0,2]},
+            {"char":"s", "holes": [0,3]},
+            {"char":"u", "holes": [0,4]},
+            {"char":"v", "holes": [0,5]},
+            {"char":"w", "holes": [0,6]},
+            {"char":"x", "holes": [0,7]},
+            {"char":"y", "holes": [0,8]},
+            {"char":"z", "holes": [0,9]}
+        ];
+
+
+        var originaltext = '0123456789abcdefghijklmnopqrstuvwxyz&₵.<(+|-!$*);▭/,%_>?:#@\'="'
+
+        function refresh() {
+            var text = originaltext.toLowerCase().split('');
+            for (let letter = 0; letter < text.length; letter++) {
+                var alphabetNumber = chars.indexOf(text[letter])+1;
+                var mod = alphabetNumber%9;
+                var indexToSelect = 0;
+                if (mod == 0) {
+                    indexToSelect = 9;
+                }
+                else {
+                    indexToSelect = mod;
+                }
+
+                var zone = Math.ceil(alphabetNumber/9);
+                if (alphabetNumber > 18 && alphabetNumber <= 26)
+                {
+                    document.querySelectorAll("#test input")[(((indexToSelect)*80)+letter)].checked = true; //last 8 start at 2
+                    document.querySelectorAll("#zone input")[((zone-1)*80)+letter].checked = true;
+                }
+                else if (alphabetNumber <= 18 && alphabetNumber > 0) {
+                    document.querySelectorAll("#test input")[(((indexToSelect-1)*80)+letter)].checked = true;
+                    document.querySelectorAll("#zone input")[((zone-1)*80)+letter].checked = true;
+                }
+                else if (alphabetNumber == 27) {
+                    document.querySelectorAll("#zone input")[(2*80)+letter].checked = true;
+                }
+                else if (alphabetNumber > 27 && alphabetNumber <= 36) {
+                    document.querySelectorAll("#test input")[((((alphabetNumber-27)-1)*80)+letter)].checked = true;
+                }
+                else if (text[letter] == " ") {
+
+                }
+                else {
+                    var match = false;
+                    symbols.forEach(symbol => {
+                        if (symbol.symbol == text[letter]) {
+                            match = true;
+                            symbol.holes.forEach(hole => {
+                                if (hole == 11) {
+                                    document.querySelectorAll("#zone input")[80+letter].checked = true;
+                                }
+                                else if (hole == 12) {
+                                    document.querySelectorAll("#zone input")[letter].checked = true;
+                                }
+                                else if (hole > 0 && hole <= 9) {
+                                    document.querySelectorAll("#test input")[(((hole-1)*80)+letter)].checked = true;
+                                }
+                                else if (hole == 0) {
+                                    document.querySelectorAll("#zone input")[(80*2)+letter].checked = true;
+                                }
+                            });
+                        }
+                    });
+                    if (!match) {
+                        alert('Your string has some charachters which cannot be punched. They have been replaced with a whitespace.')
+                    }
+                }
+                document.getElementById("text").childNodes[letter].innerHTML = text[letter];
+            }
+        }
+
+        document.querySelectorAll("input[type=checkbox]").forEach(function(element,i){
+            element.column = i%80;
+            if(element.column == 0){ element.column = 80; }
+            element.addEventListener("change",checkboxChanged,false);
+        });
+
+        edit(document.querySelector(".card"),`1234567890abcdefghijklmnopqrstuvwxyz&₵.<(+|-!$*);▭/%_>?:#@'="`);
+    </script>
+</body>
+</html>
